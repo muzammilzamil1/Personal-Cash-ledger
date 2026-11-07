@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cash Ledger</title>
+<style>
+  :root { --bg:#f6f5f1; --card:#fff; --ink:#1d2433; --mute:#6b7280; --line:#e6e3da;
+          --green:#157347; --red:#b42318; --brand:#1f4e79; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:560px; margin:0 auto; padding:16px 16px 90px; }
+  h1 { font-size:20px; margin:4px 0 14px; display:flex; justify-content:space-between; align-items:center; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:12px; }
+  .label { font-size:13px; color:var(--mute); }
+  .big { font-size:34px; font-weight:700; margin-top:2px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .person { cursor:pointer; }
+  .person .name { font-size:17px; font-weight:600; }
+  .pos { color:var(--green); } .neg { color:var(--red); }
+  button { font:inherit; border:0; border-radius:12px; padding:13px 16px; font-weight:600; cursor:pointer; }
+  .primary { background:var(--brand); color:#fff; }
+  .out { background:#fdecea; color:var(--red); }
+  .in { background:#e7f5ee; color:var(--green); }
+  .ghost { background:#eceae3; color:var(--ink); }
+  .link { background:none; color:var(--brand); padding:6px 4px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .entry { padding:12px 0; border-top:1px solid var(--line); cursor:pointer; }
+  .entry:first-child { border-top:0; }
+  .small { font-size:13px; color:var(--mute); }
+  .amt { font-weight:700; white-space:nowrap; }
+  .empty { text-align:center; color:var(--mute); padding:20px 0; }
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:flex-end; justify-content:center; z-index:10; }
+  .modal.show { display:flex; }
+  .sheet { background:#fff; width:100%; max-width:560px; border-radius:18px 18px 0 0; padding:18px; max-height:92vh; overflow:auto; }
+  .sheet h2 { margin:0 0 12px; font-size:18px; }
+  label { display:block; font-size:13px; color:var(--mute); margin:10px 0 4px; }
+  input { width:100%; font:inherit; padding:12px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+  .actions { display:flex; gap:10px; margin-top:16px; }
+  .actions button { flex:1; }
+  img.preview { width:100%; border:1px solid var(--line); border-radius:10px; }
+  .back { margin-bottom:6px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HOME -->
+  <div id="home">
+    <h1>Cash Ledger <button class="link" id="btnSettings">Settings</button></h1>
+
+    <div class="card">
+      <div class="label">Cash in my hand now</div>
+      <div class="big" id="cash">₹0</div>
+      <div class="grid2" style="margin-top:12px">
+        <button class="in" data-self="in">+ Add my cash</button>
+        <button class="out" data-self="out">− I spent</button>
+      </div>
+    </div>
+
+    <div class="row" style="margin:16px 4px 8px"><b>People</b><button class="link" id="btnAddPerson">+ Add person</button></div>
+    <div id="people"></div>
+    <div class="card" id="selfCard" style="display:none"></div>
+  </div>
+
+  <!-- PERSON LEDGER -->
+  <div id="ledger" class="hidden">
+    <button class="link back" id="btnBack">← Back</button>
+    <div class="card">
+      <div class="row"><div class="name" style="font-size:20px;font-weight:700" id="lName"></div>
+        <button class="link" id="btnRename">Rename</button></div>
+      <div class="big" id="lBal"></div>
+      <div class="small" id="lText"></div>
+      <div class="grid2" style="margin-top:14px">
+        <button class="out" id="btnOut">− I gave / paid</button>
+        <button class="in" id="btnIn">+ He gave me</button>
+      </div>
+      <button class="primary" style="width:100%;margin-top:10px" id="btnShare">Share ledger as image</button>
+    </div>
+    <div class="card" id="entries"></div>
+  </div>
+</div>
+
+<!-- ENTRY MODAL -->
+<div class="modal" id="mEntry"><div class="sheet">
+  <h2 id="eTitle"></h2>
+  <label>Amount (₹)</label><input id="eAmount" type="number" inputmode="decimal" min="0" step="0.01">
+  <label id="eNoteLabel">Note</label><input id="eNote" type="text">
+  <label>Date</label><input id="eDate" type="date">
+  <div class="actions">
+    <button class="ghost" id="eCancel">Cancel</button>
+    <button class="primary" id="eSave">Save</button>
+  </div>
+  <div class="actions" id="eDelRow"><button class="ghost neg" id="eDelete">Delete this entry</button></div>
+</div></div>
+
+<!-- SHARE MODAL -->
+<div class="modal" id="mShare"><div class="sheet">
+  <h2>Ledger image</h2>
+  <img class="preview" id="sImg" alt="Ledger">
+  <p class="small">On phone: press and hold the image to save it, or tap Share.</p>
+  <div class="actions">
+    <button class="ghost" id="sClose">Close</button>
+    <button class="primary" id="sShare">Share</button>
+    <button class="ghost" id="sDownload">Save</button>
+  </div>
+</div></div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal" id="mSettings"><div class="sheet">
+  <h2>Settings</h2>
+  <label>My name (shown on the shared image)</label><input id="setOwner" type="text">
+  <label>Opening cash in hand (₹)</label><input id="setOpening" type="number" inputmode="decimal" step="0.01">
+  <div class="actions">
+    <button class="ghost" id="setCancel">Close</button>
+    <button class="primary" id="setSave">Save</button>
+  </div>
+  <p class="small" style="margin-top:18px">Backup: your data lives only in this browser. Save a backup file now and then.</p>
+  <div class="actions">
+    <button class="ghost" id="btnExport">Save backup</button>
+    <button class="ghost" id="btnImport">Restore backup</button>
+  </div>
+  <input type="file" id="fileImport" accept="application/json" class="hidden">
+</div></div>
+
+<script src="ledger.js"></script>
+<script>
+(function () {
+  var L = window.Ledger;
+  var KEY = 'cashLedger.v1';
+  var state = load();
+  var currentPerson = null;   // id of the person whose ledger is open
+  var editing = null;         // {person, type, id?}
+  var lastBlob = null, lastName = '';
+
+  function $(id) { return document.getElementById(id); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function today() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+  function dmy(s) { var p = s.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function load() {
+    try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && s.people) return s; } catch (e) {}
+    return { owner: 'Me', opening: 0, people: [{ id: 'p1', name: 'Father-in-law' }], entries: [] };
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { alert('Could not save. Storage may be full or blocked.'); } }
+
+  function personName(id) { var p = state.people.filter(function (x) { return x.id === id; })[0]; return p ? p.name : ''; }
+
+  /* ---------- HOME ---------- */
+  function renderHome() {
+    $('cash').textContent = L.fmt(L.cashInHand(state.opening, state.entries));
+    var html = '';
+    state.people.forEach(function (p) {
+      var b = L.personBalance(state.entries, p.id);
+      var cls = b > 0 ? 'pos' : b < 0 ? 'neg' : '';
+      var txt = b === 0 ? 'All clear' : b > 0 ? 'Owes me' : 'I owe';
+      html += '<div class="card person" data-id="' + p.id + '"><div class="row"><div><div class="name">' + esc(p.name) +
+        '</div><div class="small">' + txt + '</div></div><div class="amt ' + cls + '" style="font-size:20px">' + L.fmt(b) + '</div></div></div>';
+    });
+    $('people').innerHTML = html || '<div class="empty">No people yet.</div>';
+    var own = state.entries.filter(function (e) { return e.person === 'self'; });
+    var sc = $('selfCard');
+    if (own.length) {
+      sc.style.display = '';
+      sc.innerHTML = '<b>My own cash entries</b>' + L.sortEntries(own).reverse().slice(0, 8).map(function (e) {
+        return entryRow(e, false);
+      }).join('');
+    } else sc.style.display = 'none';
+  }
+
+  function entryRow(e, showBal) {
+    var sign = e.type === 'in' ? '+' : '−';
+    var cls = e.type === 'in' ? 'pos' : 'neg';
+    return '<div class="entry" data-eid="' + e.id + '"><div class="row"><div><div>' + esc(e.note || (e.type === 'in' ? 'Money in' : 'Money out')) +
+      '</div><div class="small">' + dmy(e.date) + '</div></div><div style="text-align:right"><div class="amt ' + cls + '">' + sign + L.fmt(e.amount) + '</div>' +
+      (showBal ? '<div class="small">Balance ' + (e.balance < 0 ? '−' : '') + L.fmt(e.balance) + '</div>' : '') + '</div></div></div>';
+  }
+
+  /* ---------- PERSON LEDGER ---------- */
+  function openPerson(id) {
+    currentPerson = id;
+    $('home').classList.add('hidden'); $('ledger').classList.remove('hidden');
+    renderLedger(); window.scrollTo(0, 0);
+  }
+  function renderLedger() {
+    var name = personName(currentPerson);
+    var b = L.personBalance(state.entries, currentPerson);
+    $('lName').textContent = name;
+    $('lBal').textContent = L.fmt(b);
+    $('lBal').className = 'big ' + (b > 0 ? 'pos' : b < 0 ? 'neg' : '');
+    $('lText').textContent = L.balanceText(b, name, state.owner);
+    $('btnIn').textContent = '+ ' + name.split(' ')[0] + ' gave me';
+    var rows = L.withRunning(state.entries, currentPerson).reverse();
+    $('entries').innerHTML = rows.length ? rows.map(function (e) { return entryRow(e, true); }).join('') :
+      '<div class="empty">No entries yet. Tap a button above to add one.</div>';
+  }
+
+  /* ---------- ENTRY MODAL ---------- */
+  function openEntry(person, type, existing) {
+    editing = { person: person, type: type, id: existing ? existing.id : null };
+    var isSelf = person === 'self';
+    var title = existing ? 'Edit entry' :
+      isSelf ? (type === 'in' ? 'Add to my cash' : 'I spent') :
+      (type === 'out' ? 'I gave / paid for ' + personName(person) : personName(person) + ' gave me');
+    $('eTitle').textContent = title;
+    $('eNoteLabel').textContent = (!isSelf && type === 'out') ? 'Paid to / reason (optional)' : 'Note (optional)';
+    $('eAmount').value = existing ? existing.amount : '';
+    $('eNote').value = existing ? existing.note : '';
+    $('eDate').value = existing ? existing.date : today();
+    $('eDelRow').style.display = existing ? '' : 'none';
+    $('mEntry').classList.add('show');
+    setTimeout(function () { $('eAmount').focus(); }, 50);
+  }
+  function closeEntry() { $('mEntry').classList.remove('show'); editing = null; }
+
+  $('eSave').onclick = function () {
+    var amt = L.round(parseFloat($('eAmount').value));
+    if (!(amt > 0)) { alert('Please enter an amount more than 0.'); return; }
+    var date = $('eDate').value || today();
+    var note = $('eNote').value.trim();
+    if (editing.id) {
+      state.entries.forEach(function (e) { if (e.id === editing.id) { e.amount = amt; e.date = date; e.note = note; } });
+    } else {
+      state.entries.push({ id: uid(), person: editing.person, type: editing.type, amount: amt, date: date, note: note });
+    }
+    save(); closeEntry(); refresh();
+  };
+  $('eCancel').onclick = closeEntry;
+  $('eDelete').onclick = function () {
+    if (!confirm('Delete this entry?')) return;
+    state.entries = state.entries.filter(function (e) { return e.id !== editing.id; });
+    save(); closeEntry(); refresh();
+  };
+  function refresh() { renderHome(); if (currentPerson) renderLedger(); }
+
+  /* ---------- CLICKS ---------- */
+  $('people').onclick = function (ev) { var c = ev.target.closest('.person'); if (c) openPerson(c.dataset.id); };
+  document.body.addEventListener('click', function (ev) {
+    var s = ev.target.closest('[data-self]');
+    if (s) { openEntry('self', s.dataset.self); return; }
+    var en = ev.target.closest('[data-eid]');
+    if (en) {
+      var e = state.entries.filter(function (x) { return x.id === en.dataset.eid; })[0];
+      if (e) openEntry(e.person, e.type, e);
+    }
+  });
+  $('btnBack').onclick = function () { currentPerson = null; $('ledger').classList.add('hidden'); $('home').classList.remove('hidden'); renderHome(); };
+  $('btnOut').onclick = function () { openEntry(currentPerson, 'out'); };
+  $('btnIn').onclick = function () { openEntry(currentPerson, 'in'); };
+  $('btnAddPerson').onclick = function () {
+    var n = (prompt('Name of the person?') || '').trim();
+    if (!n) return;
+    state.people.push({ id: uid(), name: n }); save(); renderHome();
+  };
+  $('btnRename').onclick = function () {
+    var n = (prompt('New name?', personName(currentPerson)) || '').trim();
+    if (!n) return;
+    state.people.forEach(function (p) { if (p.id === currentPerson) p.name = n; });
+    save(); refresh();
+  };
+
+  /* ---------- SETTINGS ---------- */
+  $('btnSettings').onclick = function () {
+    $('setOwner').value = state.owner; $('setOpening').value = state.opening || '';
+    $('mSettings').classList.add('show');
+  };
+  $('setCancel').onclick = function () { $('mSettings').classList.remove('show'); };
+  $('setSave').onclick = function () {
+    state.owner = $('setOwner').value.trim() || 'Me';
+    state.opening = L.round(parseFloat($('setOpening').value) || 0);
+    save(); $('mSettings').classList.remove('show'); refresh();
+  };
+  $('btnExport').onclick = function () {
+    var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    download(blob, 'cash-ledger-backup-' + today() + '.json');
+  };
+  $('btnImport').onclick = function () { $('fileImport').click(); };
+  $('fileImport').onchange = function () {
+    var f = this.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      try {
+        var s = JSON.parse(r.result);
+        if (!s.people || !s.entries) throw 0;
+        if (!confirm('This will replace the data on this phone with the backup. Continue?')) return;
+        state = s; save(); currentPerson = null;
+        $('ledger').classList.add('hidden'); $('home').classList.remove('hidden');
+        $('mSettings').classList.remove('show'); renderHome();
+      } catch (e) { alert('This file is not a valid backup.'); }
+    };
+    r.readAsText(f); this.value = '';
+  };
+
+  function download(blob, name) {
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  }
+
+  /* ---------- SHARE IMAGE ---------- */
+  function drawLedger(pid) {
+    var name = personName(pid), rows = L.withRunning(state.entries, pid);
+    var bal = L.personBalance(state.entries, pid);
+    var W = 900, pad = 36, rowH = 46, headH = 150, tabH = 44, footH = 120;
+    var H = headH + tabH + Math.max(rows.length, 1) * rowH + footH;
+    var scale = 2, c = document.createElement('canvas');
+    c.width = W * scale; c.height = H * scale;
+    var x = c.getContext('2d'); x.scale(scale, scale);
+    x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#1f4e79'; x.fillRect(0, 0, W, 8);
+    x.fillStyle = '#1d2433'; x.font = '700 30px system-ui, sans-serif'; x.textBaseline = 'alphabetic';
+    x.fillText('Account Ledger', pad, 60);
+    x.font = '400 20px system-ui, sans-serif'; x.fillStyle = '#4b5563';
+    x.fillText(name + '  ↔  ' + state.owner, pad, 94);
+    x.font = '400 16px system-ui, sans-serif'; x.fillStyle = '#6b7280';
+    x.fillText('As on ' + dmy(today()), pad, 122);
+
+    // columns
+    var cx = { date: pad, det: pad + 120, given: 560, recd: 690, bal: W - pad };
+    var y = headH;
+    x.fillStyle = '#f1efe8'; x.fillRect(pad - 12, y, W - 2 * pad + 24, tabH);
+    x.fillStyle = '#1d2433'; x.font = '700 15px system-ui, sans-serif'; x.textBaseline = 'middle';
+    x.textAlign = 'left'; x.fillText('Date', cx.date, y + tabH / 2); x.fillText('Details', cx.det, y + tabH / 2);
+    x.textAlign = 'right'; x.fillText('Given', cx.given + 80, y + tabH / 2);
+    x.fillText('Received', cx.recd + 80, y + tabH / 2); x.fillText('Balance', cx.bal, y + tabH / 2);
+    y += tabH;
+
+    x.font = '400 17px system-ui, sans-serif';
+    if (!rows.length) { x.textAlign = 'center'; x.fillStyle = '#6b7280'; x.fillText('No entries yet', W / 2, y + rowH / 2); y += rowH; }
+    rows.forEach(function (e) {
+      var mid = y + rowH / 2;
+      x.fillStyle = '#1d2433'; x.textAlign = 'left'; x.fillText(dmy(e.date), cx.date, mid);
+      var d = e.note || (e.type === 'in' ? 'Cash received' : 'Cash given');
+      while (x.measureText(d).width > 300 && d.length > 3) d = d.slice(0, -2);
+      if (d !== (e.note || (e.type === 'in' ? 'Cash received' : 'Cash given'))) d += '…';
+      x.fillText(d, cx.det, mid);
+      x.textAlign = 'right';
+      if (e.type === 'out') { x.fillStyle = '#b42318'; x.fillText(L.fmt(e.amount), cx.given + 80, mid); }
+      else { x.fillStyle = '#157347'; x.fillText(L.fmt(e.amount), cx.recd + 80, mid); }
+      x.fillStyle = '#1d2433'; x.fillText((e.balance < 0 ? '−' : '') + L.fmt(e.balance), cx.bal, mid);
+      x.strokeStyle = '#ece9df'; x.beginPath(); x.moveTo(pad - 12, y + rowH); x.lineTo(W - pad + 12, y + rowH); x.stroke();
+      y += rowH;
+    });
+
+    // total line
+    y += 22;
+    x.fillStyle = bal === 0 ? '#eef6f1' : bal > 0 ? '#e7f5ee' : '#fdecea';
+    x.fillRect(pad - 12, y, W - 2 * pad + 24, 64);
+    x.fillStyle = bal < 0 ? '#b42318' : '#157347'; x.textAlign = 'left'; x.font = '700 22px system-ui, sans-serif';
+    x.textBaseline = 'middle';
+    x.fillText(L.balanceText(bal, name, state.owner), pad, y + 32);
+    return c;
+  }
+
+  $('btnShare').onclick = function () {
+    var c = drawLedger(currentPerson);
+    lastName = 'ledger-' + personName(currentPerson).replace(/\s+/g, '-').toLowerCase() + '-' + today() + '.png';
+    c.toBlob(function (b) {
+      lastBlob = b;
+      $('sImg').src = URL.createObjectURL(b);
+      $('mShare').classList.add('show');
+    }, 'image/png');
+  };
+  $('sClose').onclick = function () { $('mShare').classList.remove('show'); };
+  $('sDownload').onclick = function () { if (lastBlob) download(lastBlob, lastName); };
+  $('sShare').onclick = function () {
+    if (!lastBlob) return;
+    var file = new File([lastBlob], lastName, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Account Ledger' }).catch(function () {});
+    } else { download(lastBlob, lastName); }
+  };
+
+  renderHome();
+})();
+</script>
+</body>
+</html>
