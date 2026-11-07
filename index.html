@@ -2,14 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f4e79">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ledger">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
 <title>Cash Ledger</title>
 <style>
   :root { --bg:#f6f5f1; --card:#fff; --ink:#1d2433; --mute:#6b7280; --line:#e6e3da;
           --green:#157347; --red:#b42318; --brand:#1f4e79; }
   * { box-sizing:border-box; }
   body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
-  .wrap { max-width:560px; margin:0 auto; padding:16px 16px 90px; }
+  .wrap { max-width:560px; margin:0 auto; padding:calc(16px + env(safe-area-inset-top)) 16px calc(90px + env(safe-area-inset-bottom)); }
+  input, button { -webkit-appearance:none; }
+  input { font-size:16px; } /* stops iPhone zooming in when you tap a box */
   h1 { font-size:20px; margin:4px 0 14px; display:flex; justify-content:space-between; align-items:center; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:12px; }
   .label { font-size:13px; color:var(--mute); }
@@ -374,6 +383,11 @@
   };
 
   renderHome();
+
+  // Lets the app work offline once installed (needs https, like GitHub Pages)
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
 })();
 </script>
 </body>
